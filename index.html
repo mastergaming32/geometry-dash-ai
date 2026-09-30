@@ -1,1 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Geometry Dash AI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --blue: #1d57e0;
+    --blue-dark: #0f2f8f;
+    --ink: #0a0f2c;
+    --yellow: #ffd60a;
+    --green: #39d94c;
+    --white: #ffffff;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: "Nunito", system-ui, sans-serif;
+    color: var(--ink);
+    background-color: var(--blue);
+    background-image:
+      linear-gradient(rgba(255,255,255,.07) 2px, transparent 2px),
+      linear-gradient(90deg, rgba(255,255,255,.07) 2px, transparent 2px);
+    background-size: 48px 48px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 14px 0;
+  }
+  header { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+  .cube {
+    width: 48px; height: 48px; background: var(--yellow);
+    border: 4px solid var(--ink); position: relative; flex: none;
+  }
+  .cube::before, .cube::after {
+    content: ""; position: absolute; top: 12px; width: 8px; height: 8px; background: var(--ink);
+  }
+  .cube::before { left: 8px; }
+  .cube::after { right: 8px; }
+  h1 {
+    font-family: "Lilita One", sans-serif; font-weight: 400;
+    font-size: clamp(28px, 6vw, 42px); margin: 0; color: var(--white);
+    -webkit-text-stroke: 2px var(--ink); paint-order: stroke fill;
+    text-shadow: 3px 3px 0 var(--ink);
+  }
+  main {
+    width: 100%; max-width: 720px; flex: 1; min-height: 0;
+    display: flex; flex-direction: column;
+    background: var(--ink); border: 4px solid var(--ink);
+    box-shadow: 6px 6px 0 rgba(0,0,0,.35);
+  }
+  #messages {
+    flex: 1; overflow-y: auto; padding: 16px;
+    display: flex; flex-direction: column; gap: 12px;
+    background: var(--blue-dark);
+  }
+  .msg {
+    max-width: 85%; padding: 10px 14px; border: 3px solid var(--ink);
+    box-shadow: 3px 3px 0 var(--ink); line-height: 1.45; font-size: 17px;
+    white-space: pre-wrap; overflow-wrap: anywhere;
+  }
+  .msg.bot { align-self: flex-start; background: var(--white); }
+  .msg.user { align-self: flex-end; background: var(--yellow); }
+  .msg.error { background: #ffb3b3; }
+  form { display: flex; gap: 10px; padding: 12px; background: var(--ink); }
+  textarea {
+    flex: 1; resize: none; font: inherit; font-size: 17px;
+    padding: 10px 12px; border: 3px solid var(--white); background: var(--white);
+    color: var(--ink); min-height: 48px; max-height: 140px;
+  }
+  button {
+    font-family: "Lilita One", sans-serif; font-size: 20px; cursor: pointer;
+    background: var(--green); color: var(--ink); border: 3px solid var(--white);
+    padding: 0 22px;
+  }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button:active:not(:disabled) { transform: translateY(2px); }
+  textarea:focus-visible, button:focus-visible { outline: 3px solid var(--yellow); outline-offset: 2px; }
+  .ground { width: 100%; height: 14px; background: var(--ink); margin-top: 12px; flex: none; }
+  @media (max-width: 480px) { .msg { max-width: 92%; font-size: 16px; } }
+</style>
+</head>
+<body>
+  <header>
+    <div class="cube" aria-hidden="true"></div>
+    <h1>Geometry Dash AI</h1>
+  </header>
 
+  <main>
+    <div id="messages" aria-live="polite"></div>
+    <form id="chat-form">
+      <textarea id="input" rows="1" placeholder="Ask about levels, icons, practice tips, the editor..." aria-label="Your question"></textarea>
+      <button id="send" type="submit">Send</button>
+    </form>
+  </main>
+  <div class="ground"></div>
+
+<script>
+  // Paste your backend link here once it exists (for example a Vercel function URL).
+  // Leave it empty to test the chat page on its own.
+  const API_URL = "";
+
+  const messagesEl = document.getElementById("messages");
+  const form = document.getElementById("chat-form");
+  const input = document.getElementById("input");
+  const sendBtn = document.getElementById("send");
+  const history = [];
+
+  function addMessage(text, who) {
+    const el = document.createElement("div");
+    el.className = "msg " + who;
+    el.textContent = text;
+    messagesEl.appendChild(el);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    return el;
+  }
+
+  addMessage("Hey! Ask me anything about Geometry Dash: levels, game modes, icons, practice tips, or the level editor.", "bot");
+
+  async function getReply() {
+    if (!API_URL) {
+      return "The AI isn't connected yet. Add your backend link to API_URL in index.html to turn me on.";
+    }
+    const res = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages: history })
+    });
+    if (!res.ok) throw new Error("Server returned " + res.status);
+    const data = await res.json();
+    return data.reply;
+  }
+
+  async function send() {
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = "";
+    input.style.height = "auto";
+    addMessage(text, "user");
+    history.push({ role: "user", content: text });
+    sendBtn.disabled = true;
+    const thinking = addMessage("Thinking...", "bot");
+    try {
+      const reply = await getReply();
+      thinking.textContent = reply;
+      history.push({ role: "assistant", content: reply });
+    } catch (err) {
+      thinking.textContent = "Couldn't reach the AI. Check your API_URL and try again.";
+      thinking.classList.add("error");
+      history.pop();
+    }
+    sendBtn.disabled = false;
+    input.focus();
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  form.addEventListener("submit", (e) => { e.preventDefault(); send(); });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+  });
+  input.addEventListener("input", () => {
+    input.style.height = "auto";
+    input.style.height = Math.min(input.scrollHeight, 140) + "px";
+  });
+</script>
+</body>
+</html>
